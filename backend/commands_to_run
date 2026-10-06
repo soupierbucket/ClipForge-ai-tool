@@ -31,3 +31,37 @@ pnpm.cmd install --force
 pnpm.cmd run dev -- then this works
 
 This will launch the UI --  http://localhost:5173/
+
+for Docker (run from ~/Desktop/codes):
+
+cp -n backend/.env.example backend/.env
+docker compose up --build
+
+This will launch the UI -- http://localhost:5173/
+
+With docker:
+
+cd ~/Desktop/codes
+cp -n backend/.env.example backend/.env
+docker compose up --build
+
+then open this:
+http://localhost:5173
+
+
+Make sure Ollama is running on Windows and the model exists:
+ollama list
+ollama pull qwen2.5:7b
+
+
+To stop the containers:
+docker compose down
+
+To also remove temporary Docker volumes:
+docker compose down -v
+
+
+wsl:
+ wsl --install
+ wsl --update
+ wsl --shutdown

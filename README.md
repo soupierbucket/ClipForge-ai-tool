@@ -37,7 +37,7 @@ Install Ollama from its [official Windows download page](https://ollama.com/down
 ollama pull qwen2.5:7b
 ```
 
-The model download is about 4.7 GB. Ollama runs it locally, so analysis uses your computer's memory and CPU/GPU. [Ollama's model page](https://ollama.com/library/qwen2.5%3A7b) lists the model details.
+The model download is about 4.7 GB. Ollama runs it locally, so analysis uses your computer's memory and CPU/GPU. [Ollama&#39;s model page](https://ollama.com/library/qwen2.5%3A7b) lists the model details.
 
 Install FFmpeg on Windows with WinGet:
 
@@ -83,6 +83,38 @@ pnpm run dev
 Open `http://localhost:5173`. The Vite development server proxies `/api` to `http://localhost:8000`. Set `VITE_API_BASE_URL` in `frontend/.env` only when using a different API host.
 
 The first transcription downloads the configured faster-whisper model. On CPU, `WHISPER_MODEL=small` can take several minutes and needs extra disk space; use `base` in `backend/.env` for a lighter local setup. `WHISPER_DEVICE=cpu` is the default.
+
+## Run with Docker
+
+Install Docker Desktop and make sure it is running. Create the backend environment file once from Git Bash:
+
+```bash
+cp -n backend/.env.example backend/.env
+```
+
+Keep Ollama running on Windows and make sure the model is available:
+
+```bash
+ollama list
+ollama pull qwen2.5:7b
+```
+
+Build and start both containers from the project root:
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:5173`. The frontend container serves the built React app and proxies `/api` requests to the backend container. The backend container includes FFmpeg and stores temporary media in the named `clipforge_media` volume. Ollama remains on the host and is reached through `http://host.docker.internal:11434`.
+
+Stop the stack with `Ctrl+C`, or run `docker compose down`. To remove the temporary media volume as well, use `docker compose down -v`.
+
+To run the services in the background:
+
+```bash
+docker compose up --build -d
+docker compose logs -f
+```
 
 ## Configuration
 

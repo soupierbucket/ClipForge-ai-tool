@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      # Ollama stays on the host machine, outside Docker.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:5173}
+      CLIPFORGE_TEMP_DIR: /app/temp_media
+    ports:
+      - "8000:8000"
+    volumes:
+      - clipforge_media:/app/temp_media
+      - whisper_cache:/root/.cache
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+volumes:
+  clipforge_media:
+  whisper_cache:

@@ -7,6 +7,10 @@ from urllib.request import Request, urlopen
 from openai import OpenAI
 
 from app.config import settings
+from app.prompts.clip_analysis import (
+    CANDIDATE_PROMPT as STRUCTURED_CANDIDATE_PROMPT,
+    RANKING_PROMPT as STRUCTURED_RANKING_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +138,11 @@ class OpenAICandidateAnalyzer(CandidateAnalyzer):
 CANDIDATE_PROMPT = """Select clip boundaries from the supplied timestamped speech transcript. It is the only source of story facts. Do not invent words, events, visuals, characters, reactions, or timestamps. Use only supplied segment IDs and choose contiguous ranges. Aim for 20–55 seconds when possible; any valid complete range from 1–60 seconds is acceptable. Prefer a clear passage with a beginning and ending. If there is no dramatic story, choose ordinary useful, funny, informative, or complete speech rather than returning nothing. Return up to the requested number of distinct candidates; avoid near-duplicates. You cannot see the frames: make no visual claims. Choose ranges only; the application will display the actual transcript words for those ranges. Scores are rough transcript-based estimates, not facts or view predictions; keep visual_potential conservative. Return only this JSON shape: {\"candidates\":[{\"start_segment\":integer,\"end_segment\":integer,\"scores\":{\"hook\":number,\"curiosity\":number,\"emotional_intensity\":number,\"novelty\":number,\"entertainment\":number,\"visual_potential\":number,\"payoff\":number,\"context\":number,\"standalone\":number,\"rewatch_potential\":number}}]}. IDs are inclusive. Scores must be numeric from 0 to 10. Never output markdown or text outside the JSON."""
 
 RANKING_PROMPT = """You are selecting the strongest complete standalone short-form story, not merely the most dramatic sentence. Compare the provided validated candidates using HOOK → DEVELOPMENT → PAYOFF, clarity without source context, satisfying ending, pacing implied by the transcript, and entertainment value. Favor a complete 20–55 second story over a weak longer candidate; never claim to predict views. Return strict JSON only: {\"ranked_ids\":[string],\"recommended_id\":string}. Include every supplied candidate ID exactly once, strongest first, and choose recommended_id as the strongest complete moment."""
+
+# Prompt text is maintained in app/prompts/clip_analysis.py. These assignments
+# keep the provider code compatible while making the structured templates active.
+CANDIDATE_PROMPT = STRUCTURED_CANDIDATE_PROMPT
+RANKING_PROMPT = STRUCTURED_RANKING_PROMPT
 
 SCORE_KEYS = (
     "hook", "curiosity", "emotional_intensity", "novelty", "entertainment",

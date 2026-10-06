@@ -1,0 +1,7 @@
+.venv
+__pycache__
+*.py[cod]
+.env
+temp_media
+.packages
+.pytest_cache
