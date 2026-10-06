@@ -1,0 +1,33 @@
+for backend:
+export PATH="/c/Users/Sanmay/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build-shared/bin:$PATH"
+hash -r
+ffmpeg -version
+
+and then this:
+cd ~/Desktop/codes/backend
+source .venv/Scripts/activate
+uvicorn app.main:app --reload
+
+for frontend:
+
+export PATH="/c/Program Files/nodejs:$PATH"
+hash -r
+node --version
+npm --version
+
+cd ~/Desktop/codes/frontend
+npm install --global pnpm
+pnpm install
+
+npm_prefix="$(cygpath -u "$(npm config get prefix)")"
+export PATH="$npm_prefix:$PATH"
+hash -r
+pnpm.cmd --version
+
+and then this:
+
+pnpm.cmd install
+pnpm.cmd install --force
+pnpm.cmd run dev -- then this works
+
+This will launch the UI --  http://localhost:5173/
