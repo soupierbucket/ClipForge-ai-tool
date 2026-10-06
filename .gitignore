@@ -9,6 +9,7 @@ frontend/.env.local
 .venv/
 __pycache__/
 *.py[cod]
+*.tsbuildinfo
 .pytest_cache/
 backend/.env
 backend/temp_media/
