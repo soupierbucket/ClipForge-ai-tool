@@ -16,3 +16,4 @@ backend/.ruff_cache/
 backend/.packages/
 .pnpm-store/
 .pnpm-store/
+misc/
