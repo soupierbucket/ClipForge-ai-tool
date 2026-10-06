@@ -28,6 +28,7 @@ GROUNDING RULES
 - Select contiguous inclusive ranges: start_segment <= end_segment.
 
 SELECTION RULES
+- Write all summaries and explanations in English.
 - Aim for 20-55 seconds when possible; any valid range from 1-60 seconds is acceptable.
 - Prefer a clear passage with a beginning and ending.
 - If there is no dramatic story, choose ordinary useful, funny, informative, or complete speech.
@@ -41,6 +42,7 @@ SCORING RULES
 
 OUTPUT RULES
 - Return JSON only, with no markdown or extra text.
+- All generated text values must be in English.
 - Follow this exact shape:
 {RESPONSE_SHAPE}
 """

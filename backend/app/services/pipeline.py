@@ -27,7 +27,7 @@ def run_analysis(job_id: str, url: str) -> None:
         source = download_video(video_data["url"], work_dir)
         jobs.log(job_id, f"Source download complete ({source.stat().st_size / (1024 * 1024):.1f} MB).", "success")
         jobs.update(job_id, progress=38, stage="Transcribing audio")
-        jobs.log(job_id, "Checking the source audio and preparing local speech transcription.")
+        jobs.log(job_id, "Checking source audio and preparing local English transcription and translation.")
         transcript = transcribe_video(source, on_progress=lambda message: jobs.log(job_id, message))
         jobs.log(job_id, f"Transcription complete: {len(transcript)} timestamped speech segments.", "success")
         jobs.update(job_id, progress=63, stage="Analyzing candidate moments")

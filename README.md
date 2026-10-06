@@ -1,6 +1,6 @@
 # ClipForge
 
-ClipForge analyzes long-form YouTube videos and surfaces up to five short-form candidates, each capped at 60 seconds. It transcribes speech, asks a configurable LLM provider for transcript-based candidates, combines those scores with measured audio and video activity, and renders a selected moment as a 9:16 MP4 with word-timed animated captions, occasional context-matched emojis, a blurred fill behind fitted frames, and face-tracked portrait punch-ins where possible.
+ClipForge analyzes long-form YouTube videos and surfaces up to five short-form candidates, each capped at 60 seconds. It translates speech into English with local Whisper, asks a configurable LLM provider for transcript-based candidates, combines those scores with measured audio and video activity, and renders a selected moment as a 9:16 MP4 with word-timed English captions, occasional context-matched emojis, a blurred fill behind fitted frames, and face-tracked portrait punch-ins where possible.
 
 The **Engagement Potential Score** is a transparent ranking of signals. It is not a prediction of views and does not guarantee reach.
 

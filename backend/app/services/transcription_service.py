@@ -10,12 +10,23 @@ def transcribe_video(video_path: Path, on_progress: Callable[[str], None] | None
     global _model
     try:
         if _model is None:
+            model_name = settings.whisper_model
+            # Translation requires a multilingual Whisper checkpoint. If the
+            # user selected an English-only alias, use its multilingual peer.
+            if model_name.endswith(".en"):
+                model_name = model_name[:-3]
             if on_progress:
-                on_progress(f"Loading the local Whisper {settings.whisper_model} model on {settings.whisper_device}.")
-            _model = WhisperModel(settings.whisper_model, device=settings.whisper_device, compute_type="int8" if settings.whisper_device == "cpu" else "float16")
+                on_progress(f"Loading the local multilingual Whisper {model_name} model on {settings.whisper_device} for English captions.")
+            _model = WhisperModel(model_name, device=settings.whisper_device, compute_type="int8" if settings.whisper_device == "cpu" else "float16")
         if on_progress:
-            on_progress("Transcribing the video's audio into timestamped speech segments.")
-        segments, _info = _model.transcribe(str(video_path), word_timestamps=True, vad_filter=True)
+            on_progress("Transcribing speech and translating it into English captions with word timestamps.")
+        segments, _info = _model.transcribe(
+            str(video_path),
+            task="translate",
+            language=None,
+            word_timestamps=True,
+            vad_filter=True,
+        )
         transcript = []
         for segment in segments:
             text = segment.text.strip()
