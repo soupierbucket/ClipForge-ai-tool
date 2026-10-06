@@ -65,3 +65,15 @@ wsl:
  wsl --install
  wsl --update
  wsl --shutdown
+
+once done make sure to stop doccker, close ollama running locally
+additional tip: Also make sure that you check the task manager if anything is running. Kill it or stop it. And also check if anything is enabled on startup
+
+
+For pushing in git: 
+Do a git clone
+Cd into that folder
+if changes are done use the command: 
+git remote set-url origin https://github.com/soupierbucket/ClipForge-ai-tool.git
+git push origin main
+(After the usual add, commit commands)
