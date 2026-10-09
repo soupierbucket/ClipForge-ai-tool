@@ -15,6 +15,7 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install -r requirements.txt
 
 COPY app ./app
+COPY assets ./assets
 
 RUN mkdir -p /app/temp_media
 

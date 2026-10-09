@@ -8,7 +8,9 @@ from app.analyzers.event_analyzer import detect_action_events
 from app.analyzers.video_analyzer import detect_face_tracks
 from app.services.caption_generator import write_ass
 from app.models.schemas import MAX_SHORT_DURATION_SECONDS
-from app.utils.ffmpeg import get_ffmpeg_path
+from app.config import settings
+from app.services.effect_planner import ASSETS_DIR, build_video_filter, validate_effects_plan
+from app.utils.ffmpeg import get_ffmpeg_path, probe_video_dimensions
 
 
 class ClipGenerationError(RuntimeError):
@@ -56,12 +58,16 @@ def _windows_expression(windows: list[tuple[float, float]]) -> str:
 
 
 def _zoom_crop_plan(source: Path, start: float, end: float) -> tuple:
-    capture = cv2.VideoCapture(str(source))
-    width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    capture.release()
+    dimensions = probe_video_dimensions(source)
+    if dimensions is not None:
+        width, height = dimensions
+    else:
+        capture = cv2.VideoCapture(str(source))
+        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)) if capture.isOpened() else 0
+        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)) if capture.isOpened() else 0
+        capture.release()
     if width < 2 or height < 2:
-        raise ClipGenerationError("Could not read the source video dimensions for portrait framing.")
+        raise ClipGenerationError("The downloaded source does not contain a readable video stream. Try loading the video again.")
 
     face_track, focus_track = detect_face_tracks(source, start, end)
     fit_scale = min(1080 / width, 1920 / height)
@@ -119,9 +125,23 @@ def _zoom_crop_plan(source: Path, start: float, end: float) -> tuple:
     )
 
 
-def generate_short(source: Path, transcript: list[dict], start: float, end: float, output: Path, work_dir: Path) -> tuple[str, int]:
+def _source_has_audio(source: Path) -> bool:
+    ffmpeg = get_ffmpeg_path()
+    ffprobe_name = "ffprobe.exe" if str(ffmpeg).lower().endswith(".exe") else "ffprobe"
+    ffprobe_path = Path(ffmpeg).with_name(ffprobe_name) if Path(ffmpeg).parent != Path(".") else Path(ffprobe_name)
+    try:
+        result = subprocess.run([str(ffprobe_path), "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=index", "-of", "csv=p=0", str(source)], capture_output=True, text=True, timeout=20, check=False)
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return True
+
+def generate_short(source: Path, transcript: list[dict], start: float, end: float, output: Path, work_dir: Path, effects: list[dict] | None = None) -> tuple[str, int]:
     if start < 0 or end <= start or end - start > MAX_SHORT_DURATION_SECONDS:
         raise ClipGenerationError(f"A Short must be longer than zero and no more than {MAX_SHORT_DURATION_SECONDS} seconds.")
+    try:
+        effects = validate_effects_plan(effects or [], end - start)
+    except ValueError as exc:
+        raise ClipGenerationError(str(exc)) from exc
     captions = work_dir / "captions.ass"
     try:
         action_events = detect_action_events(source, start, end)
@@ -173,9 +193,77 @@ def generate_short(source: Path, transcript: list[dict], start: float, end: floa
             f"enable='between(t\\,{local_start:.3f}\\,{local_end:.3f})':shortest=1[{next_label}]"
         )
         current_label = next_label
+    next_input = 1 + len(emoji_events)
+    for effect_index, effect in enumerate(effects):
+        if settings.effects_overlays_enabled and effect.get("overlay"):
+            sticker = work_dir / f"effect-{effect_index}.png"
+            render_emoji_overlay(effect["overlay"], sticker)
+            command.extend(["-loop", "1", "-framerate", "25", "-i", str(sticker)])
+            label = f"effect_overlay_{effect_index}"
+            t0, t1 = effect["time"], effect["time"] + effect["duration"]
+            video_filter += f";[{current_label}][{next_input}:v]overlay=x=(W-w)/2:y=H*0.17:enable='between(t\\,{t0:.3f}\\,{t1:.3f})':shortest=1[{label}]"
+            current_label = label
+            next_input += 1
+        selected_filter = effect.get("filter", "none") if settings.effects_filters_enabled else "none"
+        if selected_filter != "none":
+            label = f"effect_filter_{effect_index}"
+            video_filter += ";" + build_video_filter({**effect, "filter": selected_filter}, current_label, label)
+            current_label = label
+    audio_inputs = []
+    for effect in effects:
+        if settings.effects_sfx_enabled and effect.get("sfx"):
+            sfx_path = ASSETS_DIR / (str(effect["sfx"]) + ".wav")
+            if sfx_path.is_file():
+                command.extend(["-i", str(sfx_path)])
+                audio_inputs.append((next_input, effect))
+                next_input += 1
+    music_input = None
+    if settings.background_music_path:
+        music_path = Path(settings.background_music_path).expanduser()
+        if music_path.is_file():
+            command.extend(["-stream_loop", "-1", "-i", str(music_path)])
+            music_input = next_input
+            next_input += 1
+        else:
+            logger.warning("Configured background music file does not exist; skipping music.")
+    has_audio = _source_has_audio(source)
+    audio_filters = []
+    if has_audio and music_input is not None:
+        audio_filters.append("[0:a:0]asetpts=PTS-STARTPTS,asplit=2[baseaudio][speechsidechain]")
+    elif has_audio:
+        audio_filters.append("[0:a:0]asetpts=PTS-STARTPTS[baseaudio]")
+    music_label = None
+    if music_input is not None:
+        audio_filters.append(f"[{music_input}:a]volume=-25dB[musiclow]")
+        if has_audio:
+            audio_filters.append("[musiclow][speechsidechain]sidechaincompress=threshold=0.03:ratio=8:attack=10:release=250[duckedmusic]")
+            music_label = "[duckedmusic]"
+        else:
+            music_label = "[musiclow]"
+    sfx_labels = []
+    for index, (input_index, effect) in enumerate(audio_inputs):
+        delay_ms = max(0, round(effect["time"] * 1000))
+        label = f"sfxaudio{index}"
+        audio_filters.append(f"[{input_index}:a]atrim=duration={effect['duration']:.3f},asetpts=PTS-STARTPTS,volume=-16dB,adelay={delay_ms}|{delay_ms}:all=1[{label}]")
+        sfx_labels.append(f"[{label}]")
+    mix_labels = (["[baseaudio]"] if has_audio else []) + ([music_label] if music_label else []) + sfx_labels
+    audio_map = None
+    if mix_labels:
+        if len(mix_labels) > 1:
+            mix_duration = "first" if has_audio else "longest"
+            audio_chain = "".join(mix_labels) + f"amix=inputs={len(mix_labels)}:duration={mix_duration}:normalize=0"
+        else:
+            audio_chain = mix_labels[0]
+        audio_chain += (",loudnorm=I=-14:TP=-1.5:LRA=11" if len(mix_labels) > 1 else "loudnorm=I=-14:TP=-1.5:LRA=11")
+        if not has_audio and not music_label:
+            audio_chain += ",apad=whole_dur=%.3f" % (end - start)
+        audio_filters.append(audio_chain + "[outa]")
+        audio_map = "[outa]"
     video_filter += f";[{current_label}]null[outv]"
+    if audio_filters:
+        video_filter += ";" + ";".join(audio_filters)
     command.extend([
-        "-filter_complex", video_filter, "-map", "[outv]", "-map", "0:a:0?",
+        "-filter_complex", video_filter, "-map", "[outv]", *(["-map", audio_map] if audio_map else []),
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "20",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output),
     ])
@@ -187,7 +275,7 @@ def generate_short(source: Path, transcript: list[dict], start: float, end: floa
         raise ClipGenerationError("Short rendering timed out. Try again.") from exc
     if completed.returncode or not output.is_file() or output.stat().st_size == 0:
         details = (completed.stderr or "").strip().splitlines()
-        detail = details[-1][:240] if details else "Check that the source has a video and audio track."
+        detail = " | ".join(details[-4:])[:500] if details else "Check that the source has a video and audio track."
         raise ClipGenerationError(f"FFmpeg could not render this Short. {detail}")
     framing = "full-screen" if has_screen_zoom else "face-tracked" if focus_framed else "no-zoom" if not face_framed else "group-framed"
     return framing, len(emoji_events)

@@ -24,7 +24,7 @@ def run_analysis(job_id: str, url: str) -> None:
             raise RuntimeError(f"Videos longer than {settings.max_video_duration_seconds // 3600} hours are not supported.")
         jobs.update(job_id, video=video_data, progress=10, stage="Downloading video")
         jobs.log(job_id, "Downloading the source video with yt-dlp; FFmpeg may merge separate audio and video streams.")
-        source = download_video(video_data["url"], work_dir)
+        source = download_video(video_data["url"], work_dir, on_progress=lambda message: jobs.log(job_id, message))
         jobs.log(job_id, f"Source download complete ({source.stat().st_size / (1024 * 1024):.1f} MB).", "success")
         jobs.update(job_id, progress=38, stage="Transcribing audio")
         jobs.log(job_id, "Checking source audio and preparing local English transcription and translation.")
@@ -67,7 +67,7 @@ def run_analysis(job_id: str, url: str) -> None:
         jobs.update(job_id, work_dir=None)
 
 
-def run_generation(job_id: str, source_job_id: str, candidate_id: str) -> None:
+def run_generation(job_id: str, source_job_id: str, candidate_id: str, effects: list[dict] | None = None) -> None:
     record = jobs.get(source_job_id)
     if not record or record.get("status") != "completed" or not record.get("result"):
         jobs.update(job_id, status="failed", progress=100, stage="Generation failed", error="The analysis job is no longer available.")
@@ -86,7 +86,7 @@ def run_generation(job_id: str, source_job_id: str, candidate_id: str) -> None:
         jobs.log(job_id, f"Preparing captions for the selected {candidate['end'] - candidate['start']:.1f}-second moment.")
         jobs.update(job_id, progress=40, stage="Rendering vertical video")
         jobs.log(job_id, "Rendering a 9:16 clip with speech-timed captions, brief emoji cues, varied face-aware punch-ins, and occasional character close-ups.")
-        framing, emoji_count = generate_short(Path(source_candidates[0]), result["transcript"], candidate["start"], candidate["end"], output, work_dir)
+        framing, emoji_count = generate_short(Path(source_candidates[0]), result["transcript"], candidate["start"], candidate["end"], output, work_dir, effects=effects or [])
         if emoji_count:
             jobs.log(job_id, f"Added {emoji_count} timed emoji overlay(s) for relevant dialogue or action cues.")
         else:
@@ -100,7 +100,7 @@ def run_generation(job_id: str, source_job_id: str, candidate_id: str) -> None:
         else:
             jobs.log(job_id, "No clear face was detected, so the clip keeps the full fitted frame without a center-crop zoom.")
         jobs.update(job_id, status="completed", progress=100, stage="Short ready", clip_url=f"/api/clips/{clip_id}", clip_path=str(output))
-        jobs.log(job_id, "Clip render complete and ready to preview or download.", "success")
+        jobs.log(job_id, f"Clip render complete with {len(effects or [])} reviewed effect(s), ready to preview or download.", "success")
     except Exception as exc:
         if 'output' in locals():
             output.unlink(missing_ok=True)

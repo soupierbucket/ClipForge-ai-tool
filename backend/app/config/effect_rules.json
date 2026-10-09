@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "rules": {
+    "punchline": {"sfx":"rimshot","filter":"vignette","overlay":"😂"},
+    "surprise": {"sfx":"ding","filter":"saturation","overlay":"😮"},
+    "reveal": {"sfx":"whoosh","filter":"vignette","overlay":"✨"},
+    "fail": {"sfx":"record_scratch","filter":"desaturate","overlay":"😬"},
+    "emphasis": {"sfx":"hit","filter":"contrast","overlay":"🔥"},
+    "awkward_pause": {"sfx":"crickets","filter":"none","overlay":""},
+    "dramatic": {"sfx":"whoosh","filter":"vignette","overlay":"⚡"}
+  },
+  "filters": ["none", "vignette", "saturation", "desaturate", "contrast"]
+}

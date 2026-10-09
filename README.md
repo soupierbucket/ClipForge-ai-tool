@@ -143,3 +143,13 @@ Candidate scoring weights: hook 25%, emotion 20%, novelty 15%, visual activity 1
 ## Notes
 
 Use videos you own or have permission to process, and follow YouTube's terms and applicable copyright rules. This local prototype has no authentication, rate limiting, durable job queue, or cloud storage. Avoid exposing it publicly without adding those controls.
+
+## Sound effects and filters
+
+Step 8 uses only free, local components. No Python or npm dependency was added: FFmpeg handles mixing, filters, AAC output, and loudness normalization; the current local Ollama model optionally tags word-timed moments; Python standard-library code validates plans. If Ollama is unavailable, transcript and measured audio cues still produce a conservative plan. The included sounds are procedurally generated original assets dedicated to CC0; see `backend/assets/sfx/licenses.md` and the manifest.
+
+The UI previews each candidate effects plan before rendering. You can disable cues or change the sound and filter. Set `EFFECTS_INTENSITY=off|low|med|high` and `EFFECTS_SFX_ENABLED`, `EFFECTS_FILTERS_ENABLED`, or `EFFECTS_OVERLAYS_ENABLED` in `backend/.env`. Effects are limited to six per 30 seconds, at least four seconds apart, and sound cues are moved to nearby speech-free gaps when possible. Audio is normalized to -14 LUFS with a -1.5 dB true-peak ceiling.
+
+To optionally add local background music, set `BACKGROUND_MUSIC_PATH` to an audio file path accessible to the backend. It is mixed quietly and ducked under speech. When using Docker, mount the music file into the backend container and point the setting at the container path.
+
+Run the effects checks from the project root with `cd backend && python -m unittest discover -s tests`. The render smoke test skips automatically if FFmpeg/ffprobe are not on `PATH`.

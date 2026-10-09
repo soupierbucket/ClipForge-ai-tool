@@ -58,3 +58,8 @@ export interface JobStatus {
   result: AnalysisResult | null
   clip_url: string | null
 }
+
+export type EffectMomentType = 'punchline' | 'surprise' | 'reveal' | 'fail' | 'emphasis' | 'awkward_pause' | 'dramatic'
+export type EffectSound = 'hit' | 'whoosh' | 'rimshot' | 'record_scratch' | 'ding' | 'crickets'
+export type EffectFilter = 'none' | 'vignette' | 'saturation' | 'desaturate' | 'contrast'
+export interface ClipEffect { time: number; duration: number; moment_type: EffectMomentType; sfx: EffectSound | null; filter: EffectFilter; overlay: string; enabled: boolean }

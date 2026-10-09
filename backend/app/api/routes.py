@@ -5,7 +5,9 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 
 from app.config import settings
-from app.models.schemas import AnalyzeRequest, GenerateClipRequest, JobStatus, VideoInfo
+from app.models.schemas import AnalyzeRequest, JobStatus, VideoInfo
+from app.services.effect_planner import EffectsPlanRequest, GenerateClipRequestWithEffects, build_effects_plan, tag_moments_with_local_llm
+from app.analyzers.event_analyzer import detect_action_events
 from app.services.job_store import jobs
 from app.services.llm_analysis_service import AnalysisProviderError, get_candidate_analyzer
 from app.services.pipeline import run_analysis, run_generation
@@ -37,8 +39,33 @@ def analyze_video(request: AnalyzeRequest):
     return {"job_id": job_id, "status": "queued"}
 
 
+@router.post("/effects-plan")
+def effects_plan(request: EffectsPlanRequest):
+    record = jobs.get(request.job_id)
+    if not record or record.get("status") != "completed" or not record.get("result"):
+        raise HTTPException(status_code=404, detail="Analysis is unavailable. Analyze the video again.")
+    result = record["result"]
+    candidate = next((item for item in result.get("candidates", []) if item.get("id") == request.candidate_id), None)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found for this analysis.")
+    source_candidates = [file for file in Path(record["work_dir"]).glob("source.*") if file.is_file() and file.suffix not in {".part", ".ytdl"}]
+    signals = []
+    if source_candidates:
+        try:
+            signals = detect_action_events(source_candidates[0], candidate["start"], candidate["end"])
+        except Exception:
+            logger.exception("Effects plan signal detection failed; using transcript cues only.")
+    duration = candidate["end"] - candidate["start"]
+    llm_events = tag_moments_with_local_llm(result.get("transcript", []), candidate["start"], candidate["end"], signals)
+    effects = build_effects_plan(result.get("transcript", []), candidate["start"], candidate["end"], signals, settings.effects_intensity, llm_events)
+    for effect in effects:
+        if not settings.effects_sfx_enabled: effect["sfx"] = None
+        if not settings.effects_filters_enabled: effect["filter"] = "none"
+        if not settings.effects_overlays_enabled: effect["overlay"] = ""
+    return {"duration": duration, "effects": effects}
+
 @router.post("/generate-clip", status_code=202)
-def generate_clip(request: GenerateClipRequest):
+def generate_clip(request: GenerateClipRequestWithEffects):
     record = jobs.get(request.job_id)
     if not record:
         logger.warning("Clip request rejected: analysis job is missing or expired (analysis_job_id=%s candidate_id=%s)", request.job_id, request.candidate_id)
@@ -60,7 +87,7 @@ def generate_clip(request: GenerateClipRequest):
         raise HTTPException(status_code=404, detail="Candidate not found for this analysis.")
     job_id = jobs.create("generation", source_job_id=request.job_id, candidate_id=request.candidate_id)
     logger.info("Clip generation accepted: job_id=%s analysis_job_id=%s candidate_id=%s", job_id, request.job_id, request.candidate_id)
-    executor.submit(run_generation, job_id, request.job_id, request.candidate_id)
+    executor.submit(run_generation, job_id, request.job_id, request.candidate_id, [item.model_dump() for item in request.effects])
     return {"job_id": job_id, "status": "queued"}
 
 

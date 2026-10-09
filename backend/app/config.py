@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     llm_model: str = "qwen2.5:7b"
     ollama_base_url: str = "http://localhost:11434"
     job_retention_hours: int = 24
+    effects_intensity: str = "low"
+    effects_sfx_enabled: bool = True
+    effects_filters_enabled: bool = True
+    effects_overlays_enabled: bool = True
+    background_music_path: str | None = None
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
